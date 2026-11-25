@@ -1,0 +1,1057 @@
+<!DOCTYPE html>
+<html lang="fr" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="theme-color" content="#0f172a" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Wishlist Checker" />
+  <title>Wishlist Console Checker — Steam vers PS5 & Switch</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'system-ui', 'sans-serif'],
+          },
+          colors: {
+            ps5: '#0070D1',
+            nintendo: '#E60012',
+            switch2: '#FF3B30',
+            steam: '#1b2838',
+          }
+        }
+      }
+    };
+  </script>
+  <style>
+    body {
+      font-family: 'Inter', sans-serif;
+      background-color: #090d16;
+      color: #f8fafc;
+      -webkit-tap-highlight-color: transparent;
+    }
+    /* Masquer les barres de défilement horizontales sur les filtres mobiles */
+    .no-scrollbar::-webkit-scrollbar {
+      display: none;
+    }
+    .no-scrollbar {
+      -ms-overflow-style: none;
+      scrollbar-width: none;
+    }
+    /* Zone sécurisée pour iPhone / Android modernes */
+    .pb-safe {
+      padding-bottom: calc(5.5rem + env(safe-area-inset-bottom));
+    }
+    .bottom-nav-safe {
+      padding-bottom: env(safe-area-inset-bottom);
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col bg-[#090d16] text-slate-100 selection:bg-blue-500/30">
+
+  <!-- Notification Toast (remplace alert/confirm) -->
+  <div id="toast-container" class="fixed top-4 left-1/2 -translate-x-1/2 z-50 w-[92%] max-w-md pointer-events-none flex flex-col gap-2"></div>
+
+  <!-- Modale de confirmation personnalisée -->
+  <div id="confirm-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/75 backdrop-blur-sm p-4">
+    <div class="bg-slate-900 border border-slate-700/80 rounded-2xl p-5 w-full max-w-sm shadow-2xl">
+      <h3 id="confirm-title" class="text-lg font-bold text-white mb-2">Confirmation</h3>
+      <p id="confirm-message" class="text-sm text-slate-300 mb-5 leading-relaxed">Êtes-vous sûr ?</p>
+      <div class="flex gap-3">
+        <button id="confirm-cancel" class="flex-1 py-3 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold text-sm transition active:scale-95">
+          Annuler
+        </button>
+        <button id="confirm-ok" class="flex-1 py-3 px-4 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-semibold text-sm transition active:scale-95">
+          Confirmer
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- En-tête compacte -->
+  <header class="sticky top-0 z-30 bg-[#090d16]/90 backdrop-blur-md border-b border-slate-800/80 px-4 py-3">
+    <div class="max-w-2xl mx-auto flex items-center justify-between gap-3">
+      <div class="flex items-center gap-2.5">
+        <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-[#0070D1] via-indigo-600 to-[#E60012] flex items-center justify-center shadow-lg shadow-blue-900/30 shrink-0">
+          <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+            <path stroke-linecap="round" stroke-linejoin="round" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+        </div>
+        <div>
+          <h1 class="text-base font-extrabold tracking-tight text-white leading-tight">Wishlist Checker</h1>
+          <p class="text-[11px] text-slate-400 font-medium">Steam → PS5 • Switch • Switch 2</p>
+        </div>
+      </div>
+
+      <!-- Bouton d'analyse rapide si un Worker est configuré -->
+      <button id="header-scan-btn" onclick="runAutoCheck()" class="hidden items-center gap-1.5 px-3 py-2 rounded-xl bg-indigo-600/20 border border-indigo-500/40 text-indigo-300 text-xs font-semibold hover:bg-indigo-600/30 active:scale-95 transition">
+        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+        </svg>
+        <span>Auto-check</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- Contenu principal -->
+  <main class="flex-1 w-full max-w-2xl mx-auto px-4 pt-4 pb-safe">
+
+    <!-- ==================== ONGLET 1 : MA LISTE ==================== -->
+    <section id="tab-list" class="space-y-4">
+      
+      <!-- Compteurs dynamiques -->
+      <div class="grid grid-cols-3 gap-2.5">
+        <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-3 text-center">
+          <div id="stat-total" class="text-xl font-extrabold text-white">0</div>
+          <div class="text-[11px] font-medium text-slate-400 mt-0.5">Jeux suivis</div>
+        </div>
+        <div class="bg-[#0070D1]/10 border border-[#0070D1]/30 rounded-2xl p-3 text-center">
+          <div id="stat-ps5" class="text-xl font-extrabold text-[#3898ff]">0</div>
+          <div class="text-[11px] font-medium text-blue-300/80 mt-0.5">Dispo PS5</div>
+        </div>
+        <div class="bg-[#E60012]/10 border border-[#E60012]/30 rounded-2xl p-3 text-center">
+          <div id="stat-switch" class="text-xl font-extrabold text-[#ff4d5a]">0</div>
+          <div class="text-[11px] font-medium text-rose-300/80 mt-0.5">Switch / SW2</div>
+        </div>
+      </div>
+
+      <!-- Barre de recherche & Ajout rapide -->
+      <div class="flex gap-2">
+        <div class="relative flex-1">
+          <svg class="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+          </svg>
+          <input
+            type="text"
+            id="search-input"
+            placeholder="Filtrer ou ajouter un jeu..."
+            class="w-full bg-slate-900 border border-slate-800 focus:border-blue-500 rounded-xl pl-10 pr-9 py-3 text-sm text-white placeholder-slate-500 outline-none transition"
+          />
+          <button id="clear-search-btn" onclick="clearSearch()" class="hidden absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-white">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+        <button
+          onclick="quickAddFromSearch()"
+          title="Ajouter ce titre directement"
+          class="px-4 py-3 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-semibold text-sm shrink-0 active:scale-95 transition flex items-center gap-1.5 shadow-lg shadow-blue-900/25"
+        >
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" />
+          </svg>
+          <span class="hidden sm:inline">Ajouter</span>
+        </button>
+      </div>
+
+      <!-- Filtres tactiles horizontaux -->
+      <div class="flex gap-2 overflow-x-auto no-scrollbar pb-1" id="filter-bar">
+        <button data-filter="all" onclick="setFilter('all')" class="filter-pill px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition bg-white text-slate-950">
+          Tous
+        </button>
+        <button data-filter="ps5" onclick="setFilter('ps5')" class="filter-pill px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition bg-slate-900 text-slate-300 border border-slate-800">
+          Dispo PS5
+        </button>
+        <button data-filter="switch1" onclick="setFilter('switch1')" class="filter-pill px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition bg-slate-900 text-slate-300 border border-slate-800">
+          Dispo Switch
+        </button>
+        <button data-filter="switch2" onclick="setFilter('switch2')" class="filter-pill px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition bg-slate-900 text-slate-300 border border-slate-800">
+          Dispo Switch 2
+        </button>
+        <button data-filter="unverified" onclick="setFilter('unverified')" class="filter-pill px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition bg-slate-900 text-slate-300 border border-slate-800">
+          Exclu PC / Non vérifié
+        </button>
+      </div>
+
+      <!-- Légende rapide des statuts cliquables -->
+      <div class="flex items-center justify-between text-[11px] text-slate-400 bg-slate-900/50 border border-slate-800/60 rounded-xl px-3 py-2">
+        <span>Appuyez sur un badge console pour changer son état :</span>
+        <div class="flex items-center gap-2 font-semibold">
+          <span class="text-slate-400">? Inconnu</span>
+          <span class="text-emerald-400">✓ Dispo</span>
+          <span class="text-rose-400">✕ Non</span>
+        </div>
+      </div>
+
+      <!-- Liste des cartes de jeux -->
+      <div id="games-list" class="space-y-3"></div>
+
+      <!-- État vide -->
+      <div id="empty-state" class="hidden text-center py-12 px-4 bg-slate-900/40 border border-dashed border-slate-800 rounded-2xl">
+        <div class="w-12 h-12 rounded-2xl bg-slate-800/80 text-slate-400 flex items-center justify-center mx-auto mb-3">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
+          </svg>
+        </div>
+        <h3 class="text-sm font-bold text-white mb-1">Aucun jeu affiché</h3>
+        <p class="text-xs text-slate-400 mb-4">Modifiez vos filtres ou importez votre liste de souhaits Steam.</p>
+        <div class="flex justify-center gap-2">
+          <button onclick="switchTab('import')" class="px-4 py-2.5 rounded-xl bg-blue-600 text-white text-xs font-semibold active:scale-95 transition">
+            Importer des jeux
+          </button>
+          <button onclick="loadDemoGames()" class="px-4 py-2.5 rounded-xl bg-slate-800 text-slate-200 text-xs font-semibold active:scale-95 transition">
+            Charger les exemples
+          </button>
+        </div>
+      </div>
+
+      <!-- Actions de bas de liste -->
+      <div id="list-footer-actions" class="pt-2 flex flex-wrap items-center justify-between gap-2 border-t border-slate-800/60">
+        <button onclick="loadDemoGames()" class="text-xs text-slate-400 hover:text-slate-200 py-2 px-3 rounded-xl bg-slate-900 border border-slate-800 transition">
+          + Ajouter jeux d'exemple
+        </button>
+        <button onclick="confirmClearAll()" class="text-xs text-rose-400 hover:text-rose-300 py-2 px-3 rounded-xl bg-rose-950/30 border border-rose-900/40 transition">
+          Vider la liste
+        </button>
+      </div>
+    </section>
+
+    <!-- ==================== ONGLET 2 : IMPORTER ==================== -->
+    <section id="tab-import" class="hidden space-y-5">
+      
+      <!-- Méthode 1 : Copier-coller rapide -->
+      <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 space-y-3">
+        <div class="flex items-center gap-2">
+          <span class="w-6 h-6 rounded-lg bg-blue-600/20 text-blue-400 flex items-center justify-center text-xs font-bold">1</span>
+          <h2 class="text-sm font-bold text-white">Copier-coller une liste de titres</h2>
+        </div>
+        <p class="text-xs text-slate-400 leading-relaxed">
+          Collez vos jeux ci-dessous (un titre par ligne). Les doublons déjà présents dans votre liste seront ignorés.
+        </p>
+        <textarea
+          id="paste-textarea"
+          rows="5"
+          placeholder="Hades II&#10;Slay the Spire 2&#10;Clair Obscur: Expedition 33&#10;Hollow Knight: Silksong"
+          class="w-full bg-slate-950 border border-slate-800 focus:border-blue-500 rounded-xl p-3 text-sm text-white placeholder-slate-600 outline-none transition"
+        ></textarea>
+        <button onclick="importFromText()" class="w-full py-3.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-sm active:scale-[0.99] transition shadow-lg shadow-blue-900/25">
+          Ajouter ces jeux à ma liste
+        </button>
+      </div>
+
+      <!-- Méthode 2 : Fichier JSON / CSV Steam -->
+      <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 space-y-3">
+        <div class="flex items-center gap-2">
+          <span class="w-6 h-6 rounded-lg bg-emerald-600/20 text-emerald-400 flex items-center justify-center text-xs font-bold">2</span>
+          <h2 class="text-sm font-bold text-white">Importer un fichier JSON ou CSV</h2>
+        </div>
+        <p class="text-xs text-slate-400 leading-relaxed">
+          Compatible avec les exports Steam (<code class="text-slate-300">wishlist.json</code>, <code class="text-slate-300">wishlist.csv</code>) ou une sauvegarde de cette application.
+        </p>
+        <label class="flex flex-col items-center justify-center w-full py-5 px-4 border-2 border-dashed border-slate-700 hover:border-blue-500 rounded-xl bg-slate-950/60 cursor-pointer transition">
+          <svg class="w-7 h-7 text-slate-400 mb-1.5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+          </svg>
+          <span class="text-xs font-semibold text-slate-200">Choisir un fichier .json ou .csv</span>
+          <span class="text-[11px] text-slate-500 mt-0.5">Traitement 100% local sur votre appareil</span>
+          <input type="file" id="file-upload" accept=".json,.csv,.txt" onchange="handleFileUpload(event)" class="hidden" />
+        </label>
+      </div>
+
+      <!-- Méthode 3 : Snippet Console Navigateur Steam -->
+      <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 space-y-3">
+        <div class="flex items-center justify-between gap-2">
+          <div class="flex items-center gap-2">
+            <span class="w-6 h-6 rounded-lg bg-amber-500/20 text-amber-400 flex items-center justify-center text-xs font-bold">3</span>
+            <h2 class="text-sm font-bold text-white">Extracteur rapide depuis Steam (PC)</h2>
+          </div>
+          <span class="text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded bg-slate-800 text-slate-300">Astuce</span>
+        </div>
+        <p class="text-xs text-slate-400 leading-relaxed">
+          Ouvrez votre liste de souhaits sur <span class="text-slate-200 font-medium">store.steampowered.com</span>, faites défiler jusqu'en bas pour charger tous les jeux, ouvrez la console (<kbd class="px-1.5 py-0.5 bg-slate-800 rounded text-[11px]">F12</kbd>) et collez ce script pour télécharger un fichier JSON prêt à importer ici :
+        </p>
+        <div class="relative">
+          <pre id="steam-snippet" class="bg-slate-950 border border-slate-800 rounded-xl p-3 text-[11px] text-emerald-300 overflow-x-auto font-mono leading-relaxed">(()=>{const titles=[...new Set([...document.querySelectorAll('[data-index] a, .title')].map(e=>e.textContent.trim()).filter(t=>t.length>1&&!t.includes('€')&&!t.includes('Ajouter')))];const blob=new Blob([JSON.stringify(titles,null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='steam-wishlist.json';a.click();console.log(titles.length+' jeux exportés !');})();</pre>
+        </div>
+        <button onclick="copyTextById('steam-snippet', 'Script Steam copié !')" class="w-full py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-semibold text-xs flex items-center justify-center gap-2 active:scale-95 transition">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+          </svg>
+          <span>Copier le script d'extraction Steam</span>
+        </button>
+      </div>
+
+      <!-- Méthode 4 : Import direct via SteamID64 + Worker -->
+      <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 space-y-3">
+        <div class="flex items-center gap-2">
+          <span class="w-6 h-6 rounded-lg bg-purple-600/20 text-purple-400 flex items-center justify-center text-xs font-bold">4</span>
+          <h2 class="text-sm font-bold text-white">Sync directe SteamID64 (via Worker)</h2>
+        </div>
+        <p class="text-xs text-slate-400 leading-relaxed">
+          Nécessite un profil Steam avec « Détails des jeux » en mode <strong>Public</strong> et l'URL de votre Cloudflare Worker renseignée dans l'onglet <em>Config API</em>.
+        </p>
+        <div class="flex gap-2">
+          <input
+            type="text"
+            id="steam-id-input"
+            placeholder="Ex: 76561198000000000"
+            class="flex-1 bg-slate-950 border border-slate-800 focus:border-purple-500 rounded-xl px-3.5 py-3 text-sm text-white placeholder-slate-600 outline-none"
+          />
+          <button onclick="syncSteamViaWorker()" class="px-4 py-3 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-semibold text-xs shrink-0 active:scale-95 transition">
+            Synchroniser
+          </button>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- ==================== ONGLET 3 : CONFIG API & HÉBERGEMENT ==================== -->
+    <section id="tab-config" class="hidden space-y-5">
+
+      <!-- Configuration du Worker / Backend optionnel -->
+      <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 space-y-3">
+        <h2 class="text-sm font-bold text-white flex items-center gap-2">
+          <svg class="w-4 h-4 text-indigo-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
+          </svg>
+          <span>Backend / Cloudflare Worker (Optionnel)</span>
+        </h2>
+        <p class="text-xs text-slate-400 leading-relaxed">
+          Permet d'interroger automatiquement l'API IGDB (PS5, Switch, Switch 2) et Steam sans blocage CORS depuis votre téléphone.
+        </p>
+        <div class="space-y-2">
+          <label class="block text-[11px] font-semibold text-slate-300">URL de votre Worker</label>
+          <input
+            type="url"
+            id="worker-url-input"
+            placeholder="https://wishlist-checker.votre-compte.workers.dev"
+            class="w-full bg-slate-950 border border-slate-800 focus:border-indigo-500 rounded-xl px-3.5 py-3 text-sm text-white placeholder-slate-600 outline-none"
+          />
+        </div>
+        <div class="flex gap-2 pt-1">
+          <button onclick="saveWorkerConfig()" class="flex-1 py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-semibold text-xs active:scale-95 transition">
+            Enregistrer l'URL
+          </button>
+          <button onclick="runAutoCheck()" class="flex-1 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs active:scale-95 transition shadow-lg shadow-indigo-900/25">
+            Analyser les jeux non vérifiés
+          </button>
+        </div>
+      </div>
+
+      <!-- Sauvegarde & Export -->
+      <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 space-y-3">
+        <h2 class="text-sm font-bold text-white">Sauvegarde de vos données</h2>
+        <p class="text-xs text-slate-400">
+          Vos statuts (PS5, Switch, Switch 2) sont enregistrés localement sur ce téléphone. Exportez un fichier JSON pour transférer votre liste sur un autre appareil.
+        </p>
+        <button onclick="exportDatabaseJSON()" class="w-full py-3 rounded-xl bg-emerald-600/20 border border-emerald-500/40 hover:bg-emerald-600/30 text-emerald-300 font-semibold text-xs flex items-center justify-center gap-2 active:scale-95 transition">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+          </svg>
+          <span>Exporter ma base complète (.json)</span>
+        </button>
+      </div>
+
+      <!-- Guide (a) : Installer sur téléphone -->
+      <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 space-y-3">
+        <h2 class="text-sm font-bold text-white">📱 Installer comme une application sur mobile</h2>
+        <div class="space-y-2.5 text-xs text-slate-300 leading-relaxed">
+          <div class="p-3 rounded-xl bg-slate-950/70 border border-slate-800/80">
+            <p class="font-bold text-white mb-1">1. Hébergez ce fichier gratuitement (1 min)</p>
+            <p class="text-slate-400">Déposez ce fichier <code class="text-slate-200">index.html</code> sur <strong>Netlify Drop</strong> (<span class="text-blue-400">app.netlify.com/drop</span>), <strong>Vercel</strong> ou <strong>GitHub Pages</strong> pour obtenir une adresse HTTPS.</p>
+          </div>
+          <div class="p-3 rounded-xl bg-slate-950/70 border border-slate-800/80">
+            <p class="font-bold text-white mb-1">2. Ajoutez à l'écran d'accueil</p>
+            <ul class="list-disc list-inside text-slate-400 space-y-1">
+              <li><strong>Android (Chrome) :</strong> Menu <span class="text-slate-200">⋮</span> → <em>« Ajouter à l'écran d'accueil »</em>.</li>
+              <li><strong>iPhone (Safari) :</strong> Bouton Partager <span class="text-slate-200">□↑</span> → <em>« Sur l'écran d'accueil »</em>.</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <!-- Guide (b) : Code Cloudflare Worker prêt à l'emploi -->
+      <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 space-y-3">
+        <div class="flex items-center justify-between">
+          <h2 class="text-sm font-bold text-white">⚡ Code Cloudflare Worker (Gratuit)</h2>
+          <span class="text-[10px] px-2 py-0.5 rounded bg-indigo-500/20 text-indigo-300 font-semibold">Steam + IGDB</span>
+        </div>
+        <p class="text-xs text-slate-400 leading-relaxed">
+          Créez un Worker gratuit sur <strong>workers.cloudflare.com</strong>, ajoutez vos variables d'environnement <code class="text-slate-200">TWITCH_CLIENT_ID</code> et <code class="text-slate-200">TWITCH_TOKEN</code> (API IGDB), et collez ce code :
+        </p>
+        <pre id="worker-code-snippet" class="bg-slate-950 border border-slate-800 rounded-xl p-3 text-[11px] text-sky-300 overflow-x-auto font-mono leading-relaxed">export default {
+  async fetch(req, env) {
+    const cors = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "Content-Type", "Content-Type": "application/json" };
+    if (req.method === "OPTIONS") return new Response(null, { headers: cors });
+    const url = new URL(req.url);
+
+    // 1. Récupérer la wishlist Steam publique
+    if (url.searchParams.has("steamid")) {
+      const id = url.searchParams.get("steamid");
+      const r = await fetch(`https://api.steampowered.com/IWishlistService/GetWishlist/v1/?steamid=${id}`);
+      return new Response(await r.text(), { headers: cors });
+    }
+
+    // 2. Vérifier un jeu sur IGDB (PS5 = 167, Switch = 130, Switch 2 = 508)
+    const { title } = await req.json();
+    const igdb = await fetch("https://api.igdb.com/v4/games", {
+      method: "POST",
+      headers: { "Client-ID": env.TWITCH_CLIENT_ID, "Authorization": `Bearer ${env.TWITCH_TOKEN}` },
+      body: `search "${title.replace(/"/g, '')}"; fields name,platforms; limit 1;`
+    });
+    const [game] = await igdb.json();
+    const p = game?.platforms || [];
+    return new Response(JSON.stringify({
+      ps5: p.includes(167) ? "yes" : "no",
+      switch1: p.includes(130) ? "yes" : "no",
+      switch2: p.includes(508) ? "yes" : "no"
+    }), { headers: cors });
+  }
+};</pre>
+        <button onclick="copyTextById('worker-code-snippet', 'Code Cloudflare Worker copié !')" class="w-full py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-semibold text-xs flex items-center justify-center gap-2 active:scale-95 transition">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+          </svg>
+          <span>Copier le code du Cloudflare Worker</span>
+        </button>
+      </div>
+
+    </section>
+
+  </main>
+
+  <!-- Navigation inférieure ergonomique (pouce) -->
+  <nav class="fixed bottom-0 inset-x-0 z-40 bg-[#0d1322]/95 backdrop-blur-lg border-t border-slate-800/90 bottom-nav-safe">
+    <div class="max-w-2xl mx-auto grid grid-cols-3 h-16">
+      <button onclick="switchTab('list')" id="nav-list" class="nav-btn flex flex-col items-center justify-center gap-1 text-blue-400 font-semibold transition">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 10h16M4 14h16M4 18h16" />
+        </svg>
+        <span class="text-[11px]">Ma Liste</span>
+      </button>
+
+      <button onclick="switchTab('import')" id="nav-import" class="nav-btn flex flex-col items-center justify-center gap-1 text-slate-400 hover:text-slate-200 font-medium transition">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" />
+        </svg>
+        <span class="text-[11px]">Importer</span>
+      </button>
+
+      <button onclick="switchTab('config')" id="nav-config" class="nav-btn flex flex-col items-center justify-center gap-1 text-slate-400 hover:text-slate-200 font-medium transition">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+          <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+        </svg>
+        <span class="text-[11px]">Config API</span>
+      </button>
+    </div>
+  </nav>
+
+  <script>
+    // ==================== ÉTAT & DONNÉES ====================
+    const STORAGE_KEY = 'wishlist_console_checker_v1';
+    const CONFIG_KEY = 'wishlist_console_checker_cfg_v1';
+
+    // États possibles pour chaque console : 'unknown' -> 'yes' -> 'no'
+    const STATUS_CYCLE = ['unknown', 'yes', 'no'];
+
+    // 6 exemples réalistes pré-remplis au tout premier lancement
+    const DEMO_GAMES = [
+      { id: 'demo-1', title: 'Hades II', appid: 1145350, ps5: 'unknown', switch1: 'yes', switch2: 'yes' },
+      { id: 'demo-2', title: 'Hollow Knight: Silksong', appid: 1030300, ps5: 'yes', switch1: 'yes', switch2: 'yes' },
+      { id: 'demo-3', title: 'Balatro', appid: 2379780, ps5: 'yes', switch1: 'yes', switch2: 'unknown' },
+      { id: 'demo-4', title: 'Factorio', appid: 427520, ps5: 'no', switch1: 'yes', switch2: 'unknown' },
+      { id: 'demo-5', title: 'Black Myth: Wukong', appid: 2358720, ps5: 'yes', switch1: 'no', switch2: 'unknown' },
+      { id: 'demo-6', title: 'Subnautica 2', appid: 1962700, ps5: 'unknown', switch1: 'unknown', switch2: 'unknown' }
+    ];
+
+    let games = [];
+    let currentFilter = 'all';
+    let searchQuery = '';
+    let config = {
+      workerUrl: '',
+      steamId: ''
+    };
+
+    // ==================== INITIALISATION ====================
+    function init() {
+      // Charger la configuration
+      try {
+        const savedCfg = localStorage.getItem(CONFIG_KEY);
+        if (savedCfg) {
+          config = { ...config, ...JSON.parse(savedCfg) };
+        }
+      } catch (e) {
+        console.error('Erreur lecture config:', e);
+      }
+
+      document.getElementById('worker-url-input').value = config.workerUrl || '';
+      document.getElementById('steam-id-input').value = config.steamId || '';
+      updateHeaderScanButton();
+
+      // Charger la liste des jeux (ou pré-remplir au premier lancement)
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (raw === null) {
+          games = JSON.parse(JSON.stringify(DEMO_GAMES));
+          saveGames();
+        } else {
+          games = JSON.parse(raw) || [];
+        }
+      } catch (e) {
+        games = JSON.parse(JSON.stringify(DEMO_GAMES));
+      }
+
+      // Écouteur sur la barre de recherche
+      const searchInput = document.getElementById('search-input');
+      searchInput.addEventListener('input', (e) => {
+        searchQuery = e.target.value;
+        document.getElementById('clear-search-btn').classList.toggle('hidden', !searchQuery);
+        renderGames();
+      });
+
+      renderGames();
+    }
+
+    function saveGames() {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(games));
+      } catch (e) {
+        showToast('Erreur de sauvegarde locale', 'error');
+      }
+      updateStats();
+    }
+
+    function updateHeaderScanButton() {
+      const btn = document.getElementById('header-scan-btn');
+      if (config.workerUrl && config.workerUrl.trim().startsWith('http')) {
+        btn.classList.remove('hidden');
+        btn.classList.add('flex');
+      } else {
+        btn.classList.add('hidden');
+        btn.classList.remove('flex');
+      }
+    }
+
+    // ==================== NAVIGATION ONGLETS ====================
+    function switchTab(tabName) {
+      ['list', 'import', 'config'].forEach(name => {
+        const section = document.getElementById(`tab-${name}`);
+        const navBtn = document.getElementById(`nav-${name}`);
+        const isActive = name === tabName;
+
+        section.classList.toggle('hidden', !isActive);
+        if (isActive) {
+          navBtn.classList.remove('text-slate-400', 'font-medium');
+          navBtn.classList.add('text-blue-400', 'font-semibold');
+        } else {
+          navBtn.classList.add('text-slate-400', 'font-medium');
+          navBtn.classList.remove('text-blue-400', 'font-semibold');
+        }
+      });
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    // ==================== FILTRES & STATISTIQUES ====================
+    function setFilter(filter) {
+      currentFilter = filter;
+      document.querySelectorAll('.filter-pill').forEach(pill => {
+        const isSelected = pill.dataset.filter === filter;
+        if (isSelected) {
+          pill.className = 'filter-pill px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition bg-white text-slate-950 shadow-sm';
+        } else {
+          pill.className = 'filter-pill px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition bg-slate-900 text-slate-300 border border-slate-800 hover:border-slate-700';
+        }
+      });
+      renderGames();
+    }
+
+    function clearSearch() {
+      searchQuery = '';
+      const input = document.getElementById('search-input');
+      input.value = '';
+      document.getElementById('clear-search-btn').classList.add('hidden');
+      renderGames();
+    }
+
+    function updateStats() {
+      const total = games.length;
+      const ps5Count = games.filter(g => g.ps5 === 'yes').length;
+      const switchCount = games.filter(g => g.switch1 === 'yes' || g.switch2 === 'yes').length;
+
+      document.getElementById('stat-total').textContent = total;
+      document.getElementById('stat-ps5').textContent = ps5Count;
+      document.getElementById('stat-switch').textContent = switchCount;
+    }
+
+    // ==================== RENDU DES CARTES DE JEUX ====================
+    function renderGames() {
+      updateStats();
+      const container = document.getElementById('games-list');
+      const emptyState = document.getElementById('empty-state');
+      const footerActions = document.getElementById('list-footer-actions');
+
+      const q = searchQuery.trim().toLowerCase();
+
+      const filtered = games.filter(game => {
+        if (q && !game.title.toLowerCase().includes(q)) return false;
+
+        if (currentFilter === 'ps5') return game.ps5 === 'yes';
+        if (currentFilter === 'switch1') return game.switch1 === 'yes';
+        if (currentFilter === 'switch2') return game.switch2 === 'yes';
+        if (currentFilter === 'unverified') {
+          return game.ps5 !== 'yes' && game.switch1 !== 'yes' && game.switch2 !== 'yes';
+        }
+        return true;
+      });
+
+      if (filtered.length === 0) {
+        container.innerHTML = '';
+        emptyState.classList.remove('hidden');
+        footerActions.classList.toggle('hidden', games.length === 0);
+        return;
+      }
+
+      emptyState.classList.add('hidden');
+      footerActions.classList.remove('hidden');
+
+      container.innerHTML = filtered.map(game => {
+        const encodedTitle = encodeURIComponent(game.title);
+        const psUrl = `https://store.playstation.com/fr-fr/search/${encodedTitle}`;
+        const nintendoUrl = `https://www.nintendo.com/fr-fr/Rechercher/Rechercher-299117.html?q=${encodedTitle}`;
+
+        return `
+          <article class="bg-slate-900/95 border border-slate-800/90 rounded-2xl p-3.5 shadow-sm transition hover:border-slate-700/80">
+            <!-- Ligne supérieure : Titre + bouton supprimer -->
+            <div class="flex items-start justify-between gap-2 mb-3">
+              <div class="min-w-0 flex-1">
+                <h3 class="text-sm font-bold text-white leading-snug break-words">${escapeHtml(game.title)}</h3>
+                ${game.appid ? `<span class="text-[10px] text-slate-500 font-mono">Steam #${escapeHtml(String(game.appid))}</span>` : ''}
+              </div>
+              <button
+                onclick="deleteGame('${game.id}')"
+                title="Retirer de la liste"
+                class="p-1.5 -mr-1 -mt-1 rounded-lg text-slate-500 hover:text-rose-400 hover:bg-rose-950/30 transition shrink-0"
+              >
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
+              </button>
+            </div>
+
+            <!-- Badges interactifs PS5 / Switch / Switch 2 -->
+            <div class="grid grid-cols-3 gap-2 mb-3">
+              ${renderPlatformBadge(game.id, 'ps5', 'PS5', game.ps5)}
+              ${renderPlatformBadge(game.id, 'switch1', 'Switch', game.switch1)}
+              ${renderPlatformBadge(game.id, 'switch2', 'Switch 2', game.switch2)}
+            </div>
+
+            <!-- Boutons de vérification rapide 1 clic -->
+            <div class="grid grid-cols-2 gap-2 pt-2 border-t border-slate-800/70">
+              <a
+                href="${psUrl}"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-xl bg-[#0070D1]/15 hover:bg-[#0070D1]/25 border border-[#0070D1]/30 text-[#5cb0ff] text-[11px] font-semibold transition active:scale-95"
+              >
+                <span>Vérifier PS Store</span>
+                <svg class="w-3 h-3 shrink-0" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                </svg>
+              </a>
+
+              <a
+                href="${nintendoUrl}"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-xl bg-[#E60012]/15 hover:bg-[#E60012]/25 border border-[#E60012]/30 text-[#ff6b76] text-[11px] font-semibold transition active:scale-95"
+              >
+                <span>Vérifier Nintendo</span>
+                <svg class="w-3 h-3 shrink-0" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                </svg>
+              </a>
+            </div>
+          </article>
+        `;
+      }).join('');
+    }
+
+    function renderPlatformBadge(gameId, platformKey, label, status) {
+      let styleClass = '';
+      let icon = '';
+
+      if (status === 'yes') {
+        if (platformKey === 'ps5') {
+          styleClass = 'bg-[#0070D1] text-white border-[#3898ff] shadow-sm shadow-blue-900/40';
+        } else {
+          styleClass = 'bg-[#E60012] text-white border-[#ff5c68] shadow-sm shadow-rose-900/40';
+        }
+        icon = '✓';
+      } else if (status === 'no') {
+        styleClass = 'bg-slate-950/90 text-slate-500 border-slate-800 line-through opacity-75';
+        icon = '✕';
+      } else {
+        styleClass = 'bg-slate-800/70 text-slate-300 border-slate-700/80 hover:border-slate-500';
+        icon = '?';
+      }
+
+      return `
+        <button
+          onclick="cyclePlatformStatus('${gameId}', '${platformKey}')"
+          class="py-2.5 px-2 rounded-xl border text-xs font-bold flex items-center justify-center gap-1.5 transition active:scale-95 select-none ${styleClass}"
+        >
+          <span class="text-[11px]">${icon}</span>
+          <span>${label}</span>
+        </button>
+      `;
+    }
+
+    // ==================== ACTIONS SUR LES JEUX ====================
+    function cyclePlatformStatus(gameId, platformKey) {
+      const game = games.find(g => g.id === gameId);
+      if (!game) return;
+
+      const currentIdx = STATUS_CYCLE.indexOf(game[platformKey] || 'unknown');
+      const nextIdx = (currentIdx + 1) % STATUS_CYCLE.length;
+      game[platformKey] = STATUS_CYCLE[nextIdx];
+
+      saveGames();
+      renderGames();
+    }
+
+    function quickAddFromSearch() {
+      const title = searchQuery.trim();
+      if (!title) {
+        showToast('Saisissez le nom d’un jeu dans la barre ci-dessus', 'info');
+        document.getElementById('search-input').focus();
+        return;
+      }
+      const added = addGamesBatch([{ title }]);
+      if (added > 0) {
+        clearSearch();
+        showToast(`« ${title} » ajouté à votre liste !`, 'success');
+      } else {
+        showToast('Ce jeu est déjà dans votre liste', 'info');
+      }
+    }
+
+    function deleteGame(gameId) {
+      games = games.filter(g => g.id !== gameId);
+      saveGames();
+      renderGames();
+      showToast('Jeu retiré de la liste', 'info');
+    }
+
+    function loadDemoGames() {
+      const added = addGamesBatch(DEMO_GAMES);
+      renderGames();
+      if (added > 0) {
+        showToast(`${added} jeu(x) d'exemple ajouté(s)`, 'success');
+      } else {
+        showToast('Les jeux d’exemple sont déjà présents', 'info');
+      }
+    }
+
+    function confirmClearAll() {
+      openConfirmModal(
+        'Vider toute la liste ?',
+        `Cette action supprimera les ${games.length} jeux enregistrés sur cet appareil.`,
+        () => {
+          games = [];
+          saveGames();
+          renderGames();
+          showToast('Liste vidée', 'info');
+        }
+      );
+    }
+
+    // Ajoute un tableau d'objets { title, appid?, ps5?, switch1?, switch2? } sans doublons
+    function addGamesBatch(items) {
+      const existingTitles = new Set(games.map(g => g.title.trim().toLowerCase()));
+      let addedCount = 0;
+
+      items.forEach(item => {
+        const cleanTitle = (item.title || '').trim();
+        if (!cleanTitle) return;
+        const key = cleanTitle.toLowerCase();
+        if (existingTitles.has(key)) return;
+
+        existingTitles.add(key);
+        games.unshift({
+          id: 'g-' + Date.now() + '-' + Math.random().toString(36).slice(2, 7),
+          title: cleanTitle,
+          appid: item.appid || null,
+          ps5: ['yes', 'no', 'unknown'].includes(item.ps5) ? item.ps5 : 'unknown',
+          switch1: ['yes', 'no', 'unknown'].includes(item.switch1) ? item.switch1 : 'unknown',
+          switch2: ['yes', 'no', 'unknown'].includes(item.switch2) ? item.switch2 : 'unknown'
+        });
+        addedCount++;
+      });
+
+      if (addedCount > 0) {
+        saveGames();
+      }
+      return addedCount;
+    }
+
+    // ==================== IMPORTATION ====================
+    function importFromText() {
+      const textarea = document.getElementById('paste-textarea');
+      const lines = textarea.value
+        .split(/\r?\n/)
+        .map(line => line.replace(/^[-*•\d.)\s]+/, '').trim())
+        .filter(Boolean);
+
+      if (lines.length === 0) {
+        showToast('Collez au moins un titre de jeu', 'error');
+        return;
+      }
+
+      const added = addGamesBatch(lines.map(title => ({ title })));
+      textarea.value = '';
+      renderGames();
+      switchTab('list');
+      showToast(`${added} nouveau(x) jeu(x) importé(s) !`, 'success');
+    }
+
+    function handleFileUpload(event) {
+      const file = event.target.files?.[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const content = String(e.target?.result || '').trim();
+        try {
+          let parsedItems = [];
+
+          if (file.name.toLowerCase().endsWith('.json') || content.startsWith('{') || content.startsWith('[')) {
+            const data = JSON.parse(content);
+
+            if (Array.isArray(data)) {
+              // Format ["Hades II", "Balatro"] ou [{ title: "...", ps5: "..." }]
+              parsedItems = data.map(entry => {
+                if (typeof entry === 'string') return { title: entry };
+                return {
+                  title: entry.title || entry.name || '',
+                  appid: entry.appid || null,
+                  ps5: entry.ps5,
+                  switch1: entry.switch1,
+                  switch2: entry.switch2
+                };
+              });
+            } else if (data && typeof data === 'object') {
+              // Format Steam wishlistdata : { "1145350": { "name": "Hades II", ... }, ... }
+              if (data.response && Array.isArray(data.response.items)) {
+                parsedItems = data.response.items.map(it => ({
+                  title: it.name || `Steam App #${it.appid}`,
+                  appid: it.appid
+                }));
+              } else {
+                parsedItems = Object.entries(data).map(([key, val]) => ({
+                  title: val?.name || val?.title || `Steam App #${key}`,
+                  appid: Number(key) || null
+                }));
+              }
+            }
+          } else {
+            // Format CSV ou TXT
+            const rows = content.split(/\r?\n/).filter(Boolean);
+            parsedItems = rows.map((row, idx) => {
+              const cols = row.split(/[,;|\t]/).map(c => c.replace(/^"|"$/g, '').trim());
+              // Ignorer une éventuelle ligne d'en-tête CSV
+              if (idx === 0 && /^(name|title|jeu|titre|appid)$/i.test(cols[0])) return null;
+              // Si la 1ère colonne est un appid numérique et la 2ème le nom
+              if (/^\d+$/.test(cols[0]) && cols[1]) {
+                return { appid: Number(cols[0]), title: cols[1] };
+              }
+              return { title: cols[0] };
+            }).filter(Boolean);
+          }
+
+          const added = addGamesBatch(parsedItems);
+          event.target.value = '';
+          renderGames();
+          switchTab('list');
+          showToast(`${added} jeu(x) importé(s) depuis ${file.name}`, 'success');
+        } catch (err) {
+          console.error(err);
+          showToast('Format de fichier non reconnu ou invalide', 'error');
+        }
+      };
+      reader.readAsText(file);
+    }
+
+    // ==================== WORKER & API AUTOMATIQUE ====================
+    function saveWorkerConfig() {
+      const url = document.getElementById('worker-url-input').value.trim().replace(/\/$/, '');
+      config.workerUrl = url;
+      localStorage.setItem(CONFIG_KEY, JSON.stringify(config));
+      updateHeaderScanButton();
+      showToast(url ? 'URL du Worker enregistrée !' : 'URL du Worker effacée', 'success');
+    }
+
+    async function syncSteamViaWorker() {
+      const steamId = document.getElementById('steam-id-input').value.trim();
+      if (!steamId) {
+        showToast('Veuillez saisir votre SteamID64', 'error');
+        return;
+      }
+      config.steamId = steamId;
+      localStorage.setItem(CONFIG_KEY, JSON.stringify(config));
+
+      if (!config.workerUrl) {
+        showToast('Configurez d’abord l’URL de votre Worker dans l’onglet Config API', 'error');
+        switchTab('config');
+        return;
+      }
+
+      showToast('Récupération de la wishlist Steam...', 'info');
+      try {
+        const res = await fetch(`${config.workerUrl}?steamid=${encodeURIComponent(steamId)}`);
+        const data = await res.json();
+        const items = data?.response?.items || [];
+        if (items.length === 0) {
+          showToast('Aucun jeu trouvé (vérifiez que votre profil est public)', 'error');
+          return;
+        }
+        const added = addGamesBatch(items.map(i => ({
+          title: i.name || `Steam App #${i.appid}`,
+          appid: i.appid
+        })));
+        renderGames();
+        switchTab('list');
+        showToast(`${added} jeu(x) récupéré(s) depuis Steam !`, 'success');
+      } catch (e) {
+        showToast('Impossible de joindre votre Worker', 'error');
+      }
+    }
+
+    async function runAutoCheck() {
+      if (!config.workerUrl) {
+        showToast('Renseignez d’abord l’URL de votre Worker dans Config API', 'error');
+        switchTab('config');
+        return;
+      }
+
+      const targets = games.filter(g => g.ps5 === 'unknown' || g.switch1 === 'unknown' || g.switch2 === 'unknown');
+      if (targets.length === 0) {
+        showToast('Tous vos jeux ont déjà été vérifiés !', 'info');
+        return;
+      }
+
+      showToast(`Analyse de ${targets.length} jeu(x) en cours...`, 'info');
+      let updatedCount = 0;
+
+      for (const game of targets) {
+        try {
+          const res = await fetch(config.workerUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ title: game.title })
+          });
+          if (!res.ok) continue;
+          const result = await res.json();
+          if (result.ps5) game.ps5 = result.ps5;
+          if (result.switch1) game.switch1 = result.switch1;
+          if (result.switch2) game.switch2 = result.switch2;
+          updatedCount++;
+          saveGames();
+          renderGames();
+        } catch (err) {
+          console.warn('Erreur auto-check pour', game.title, err);
+        }
+      }
+
+      showToast(`Analyse terminée : ${updatedCount} jeu(x) mis à jour`, 'success');
+    }
+
+    function exportDatabaseJSON() {
+      const blob = new Blob([JSON.stringify(games, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `wishlist-console-checker-${new Date().toISOString().slice(0, 10)}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      showToast('Sauvegarde JSON téléchargée !', 'success');
+    }
+
+    // ==================== UTILITAIRES UI ====================
+    function copyTextById(elementId, successMessage) {
+      const el = document.getElementById(elementId);
+      if (!el) return;
+      const text = el.textContent;
+
+      const temp = document.createElement('textarea');
+      temp.value = text;
+      temp.style.position = 'fixed';
+      temp.style.opacity = '0';
+      document.body.appendChild(temp);
+      temp.select();
+      try {
+        document.execCommand('copy');
+        showToast(successMessage, 'success');
+      } catch (e) {
+        showToast('Impossible de copier automatiquement', 'error');
+      }
+      document.body.removeChild(temp);
+    }
+
+    function showToast(message, type = 'info') {
+      const container = document.getElementById('toast-container');
+      const toast = document.createElement('div');
+
+      const colors = {
+        success: 'bg-emerald-950/95 border-emerald-500/50 text-emerald-200',
+        error: 'bg-rose-950/95 border-rose-500/50 text-rose-200',
+        info: 'bg-slate-900/95 border-slate-700 text-slate-100'
+      };
+
+      toast.className = `px-4 py-3 rounded-xl border shadow-xl text-xs font-semibold text-center transition-all duration-300 transform translate-y-0 opacity-100 ${colors[type] || colors.info}`;
+      toast.textContent = message;
+      container.appendChild(toast);
+
+      setTimeout(() => {
+        toast.classList.add('opacity-0', '-translate-y-2');
+        setTimeout(() => toast.remove(), 300);
+      }, 2800);
+    }
+
+    function openConfirmModal(title, message, onConfirm) {
+      const modal = document.getElementById('confirm-modal');
+      document.getElementById('confirm-title').textContent = title;
+      document.getElementById('confirm-message').textContent = message;
+
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+
+      const cancelBtn = document.getElementById('confirm-cancel');
+      const okBtn = document.getElementById('confirm-ok');
+
+      const close = () => {
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+      };
+
+      cancelBtn.onclick = close;
+      okBtn.onclick = () => {
+        close();
+        onConfirm();
+      };
+    }
+
+    function escapeHtml(str) {
+      return str
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    }
+
+    window.addEventListener('DOMContentLoaded', init);
+  </script>
+</body>
+</html>
